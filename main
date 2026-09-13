@@ -1,0 +1,1143 @@
+{
+  "name": "Prague Stop Collector",
+  "short_name": "PragueStops",
+  "description": "Collect every public transport stop in Prague",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#a6d800",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+
+# Prague Stop Collector
+
+A personal, installable, mostly-offline web app for tracking which Prague
+public transport stops you've visited or driven through.
+
+## What's in this folder
+
+- `index.html`, `css/style.css`, `js/app.js` — the app itself
+- `data/stops.json` — the stop + line data the app reads. Ships with a
+  starter set (~15 real, verified stops) — see "Getting every stop" below.
+- `manifest.json`, `service-worker.js`, `icons/` — what makes this
+  installable on your phone and usable offline
+- `icons/star.png` — the "visited" marker. **Replace this file with any
+  other PNG of the same name** to use a different icon; nothing else needs
+  to change.
+
+## 1. Put it online (so it can be "installed" and work offline)
+
+A phone needs to load this over `https://` (or `localhost`) at least once
+for "Add to Home Screen" and offline mode to work — opening the raw files
+from a folder on the phone doesn't support that. The easiest free way:
+
+1. Create a free account at [github.com](https://github.com) if you don't
+   have one.
+2. Create a new repository (e.g. `prague-stops`), and upload every file in
+   this folder to it (drag-and-drop on the GitHub website works fine —
+   keep the folder structure, e.g. `css/style.css` stays inside a `css`
+   folder).
+3. In the repository, go to **Settings → Pages**, set "Source" to the
+   `main` branch, root folder, and save.
+4. After a minute, GitHub gives you a URL like
+   `https://yourname.github.io/prague-stops/`. Open that on your phone.
+
+## 2. Install it on your phone
+
+- **Android (Chrome):** open the URL, tap the ⋮ menu → **"Add to Home
+  screen"** (or you'll see a banner offering to install it).
+- Once installed, it opens full-screen like a normal app, and works
+  without internet for everything except *new* map areas you haven't
+  scrolled to before (those need one data connection to fetch tiles; after
+  that they're cached).
+
+## 3. Getting every Prague stop (not just the starter set)
+
+The app ships with a real, verified sample of ~15 stops so you can try it
+today. To get **every** Prague PID stop with its exact line list:
+
+1. On a computer with a normal browser, go to:
+   `https://data.pid.cz/stops/json/stops.json`
+2. Save the file (Ctrl+S / Cmd+S).
+3. Send me that file in our chat and ask me to rebuild `data/stops.json`
+   from it, filtered to Prague only (I'll match on `"municipality":
+   "Praha"`) and reshaped into the format this app expects.
+4. I'll hand you back an updated `data/stops.json` — replace the one in
+   your GitHub repo with it (or re-download the whole app from me) and
+   reload the page on your phone once while online.
+
+This file is published by ROPID/PID (Prague's transit authority) as open
+data under a CC-BY 4.0 licence, and is regenerated daily, so it's always
+current — see `pid.cz/en/opendata/` for details and licence terms.
+
+## Notes on accuracy
+
+- The starter data was pulled live from PID's feed and double-checked
+  against PID's own line-B documentation, so it's accurate as far as it
+  goes — but it's only a sample.
+- "Karlovo náměstí" in the sample only lists metro line B. The physical
+  hub at that square also has tram stops, but PID lists those under the
+  adjacent stop names ("Novoměstská radnice", "Palackého náměstí", etc.)
+  that share the same transfer node — they'll show up correctly as separate
+  markers once the full dataset is loaded.
+- Ferries, the Petřín funicular, metro A/C, and the S-line trains aren't in
+  the starter sample (I didn't have verified data for them on hand yet) —
+  they'll all appear once the full file is imported.
+
+## Customising
+
+- **Colours:** edit the `:root` variables at the top of `css/style.css`
+  (`--lime`, `--black`, etc).
+- **Visited icon:** replace `icons/star.png` with any PNG (square, ideally
+  transparent background, ~128×128px works well).
+- **App name on the home screen:** edit `short_name` in `manifest.json`.
+
+const SHELL_CACHE = "ptc-shell-v1";
+const TILE_CACHE = "ptc-tiles-v1";
+
+const SHELL_FILES = [
+  "./",
+  "index.html",
+  "manifest.json",
+  "css/style.css",
+  "js/app.js",
+  "data/stops.json",
+  "icons/icon-192.png",
+  "icons/icon-512.png",
+  "icons/star.png",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((k) => k !== SHELL_CACHE && k !== TILE_CACHE)
+          .map((k) => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
+
+function isMapTile(url) {
+  return url.hostname.includes("tile.openstreetmap.org");
+}
+function isLeafletAsset(url) {
+  return url.hostname === "unpkg.com" && url.pathname.includes("leaflet");
+}
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+
+  // Map tiles & the Leaflet library: cache-first, fall back to network,
+  // and store whatever we fetch so it works offline next time.
+  if (isMapTile(url) || isLeafletAsset(url)) {
+    event.respondWith(
+      caches.open(TILE_CACHE).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          const networkFetch = fetch(event.request)
+            .then((response) => {
+              if (response && response.status === 200) {
+                cache.put(event.request, response.clone());
+              }
+              return response;
+            })
+            .catch(() => cached);
+          return cached || networkFetch;
+        })
+      )
+    );
+    return;
+  }
+
+  // App shell files: cache-first (works fully offline), network fallback for updates.
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        return (
+          cached ||
+          fetch(event.request).then((response) => {
+            if (response && response.status === 200) {
+              const copy = response.clone();
+              caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, copy));
+            }
+            return response;
+          })
+        );
+      })
+    );
+  }
+});
+
+:root {
+  --lime: #a6d800;
+  --lime-dark: #83ad00;
+  --lime-pale: #eef8d6;
+  --black: #1a1a1a;
+  --grey: #c9cdd0;
+  --grey-dark: #8a9095;
+  --white: #ffffff;
+  --driven: #3fae4a;
+  --orange: #ff8c00;
+  --radius: 14px;
+  --header-h: 56px;
+  --tab-h: 48px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--black);
+  background: var(--white);
+  overflow: hidden;
+}
+
+.app-header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--white);
+  border-bottom: 3px solid var(--lime);
+}
+
+.app-header h1 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.header-stats {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lime-dark);
+  background: var(--lime-pale);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.tab-bar {
+  height: var(--tab-h);
+  display: flex;
+  background: var(--white);
+  border-bottom: 1px solid #eee;
+}
+
+.tab-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--grey-dark);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.tab-btn.active {
+  color: var(--black);
+  border-bottom-color: var(--lime);
+}
+
+main {
+  position: absolute;
+  top: calc(var(--header-h) + var(--tab-h));
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
+.tab-panel {
+  display: none;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-panel.active { display: block; }
+
+#tab-map { overflow: hidden; }
+#map { width: 100%; height: 100%; background: #eef1f2; }
+
+/* ---- markers ---- */
+.stop-marker {
+  border-radius: 50%;
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.stop-marker.state-none { background: var(--grey); }
+.stop-marker.state-transit { background: var(--driven); }
+.stop-marker.state-visited {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.stop-marker.state-visited img { width: 100%; height: 100%; display: block; }
+
+/* ---- lines tab ---- */
+.lines-toolbar {
+  position: sticky;
+  top: 0;
+  background: var(--white);
+  padding: 10px 12px 6px;
+  z-index: 5;
+}
+
+#lineSearch {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e5e7;
+  font-size: 15px;
+  outline: none;
+}
+#lineSearch:focus { border-color: var(--lime); }
+
+.mode-filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-top: 8px;
+  padding-bottom: 4px;
+}
+.mode-chip {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid #e2e5e7;
+  background: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--grey-dark);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mode-chip.active {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: var(--black);
+}
+
+.lines-list { padding: 4px 12px 24px; }
+
+.line-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px;
+  border-bottom: 1px solid #f0f1f2;
+  cursor: pointer;
+}
+
+.line-badge {
+  flex: none;
+  min-width: 40px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--white);
+  padding: 0 8px;
+}
+.badge-tram { background: var(--driven); }
+.badge-bus { background: #5b7dd8; }
+.badge-trolleybus { background: #7a5bd8; }
+.badge-metro { background: var(--black); }
+.badge-train { background: #d85b5b; }
+.badge-funicular { background: var(--orange); }
+.badge-ferry { background: #2aa7c9; }
+.badge-night { background: #333; }
+
+.line-row-body { flex: 1; min-width: 0; }
+.line-row-title { font-weight: 600; font-size: 14px; }
+.line-row-sub { font-size: 12px; color: var(--grey-dark); margin-top: 2px; }
+
+.progress-mini-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #eee;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.progress-mini-fill { height: 100%; background: var(--lime); }
+
+.line-row-pct { flex: none; font-size: 13px; font-weight: 700; color: var(--lime-dark); width: 42px; text-align: right; }
+
+/* ---- stats tab ---- */
+.stats-content { padding: 16px; }
+.stats-card {
+  background: var(--lime-pale);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.stats-big-num { font-size: 32px; font-weight: 800; color: var(--black); }
+.stats-label { font-size: 13px; color: var(--grey-dark); margin-top: 2px; }
+
+.mode-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.mode-progress-row .label { width: 90px; font-size: 13px; font-weight: 600; }
+.mode-progress-row .progress-bar-track { flex: 1; }
+.mode-progress-row .pct { width: 40px; text-align: right; font-size: 13px; font-weight: 700; }
+
+.almost-list { margin-top: 6px; }
+.almost-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+.almost-item .name { font-weight: 600; font-size: 14px; }
+.almost-item .need { font-size: 12px; color: var(--grey-dark); }
+
+/* ---- bottom sheet ---- */
+.sheet-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: none;
+  z-index: 100;
+}
+.sheet-backdrop.open { display: block; }
+
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: -100%;
+  background: var(--white);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 20px 20px;
+  max-height: 75vh;
+  overflow-y: auto;
+  transition: bottom 0.25s ease-out;
+  z-index: 101;
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.2);
+}
+.sheet.open { bottom: 0; }
+
+.sheet-handle {
+  width: 40px; height: 4px;
+  background: #ddd;
+  border-radius: 2px;
+  margin: 6px auto 14px;
+}
+
+.sheet h2 { margin: 0 0 4px; font-size: 19px; }
+.sheet-sub { color: var(--grey-dark); font-size: 13px; margin: 0 0 14px; }
+.sheet-hint { color: var(--grey-dark); font-size: 12px; margin-top: 10px; }
+
+.state-buttons { display: flex; gap: 8px; }
+.state-btn {
+  flex: 1;
+  padding: 12px 6px;
+  border-radius: 10px;
+  border: 2px solid #e2e5e7;
+  background: var(--white);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.state-btn[data-state="none"].selected { border-color: var(--grey-dark); background: #f2f2f2; }
+.state-btn[data-state="transit"].selected { border-color: var(--driven); background: #e8f7ea; color: var(--driven); }
+.state-btn[data-state="visited"].selected { border-color: var(--orange); background: #fff4e5; color: #c96e00; }
+
+.sheet-lines { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+.sheet-line-chip {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.sheet-close {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: var(--black);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.progress-bar-track {
+  height: 8px;
+  border-radius: 4px;
+  background: #eee;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.progress-bar-fill { height: 100%; background: var(--lime); }
+
+.line-stop-list { margin-top: 8px; }
+.line-stop-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f1f2;
+  cursor: pointer;
+}
+.line-stop-row .dot {
+  width: 12px; height: 12px; border-radius: 50%; flex: none;
+}
+.dot.state-none { background: var(--grey); }
+.dot.state-transit { background: var(--driven); }
+.dot.state-visited { background: var(--orange); }
+.line-stop-row .name { flex: 1; font-size: 14px; }
+
+/* Leaflet popup tweaks */
+.leaflet-popup-content { font-size: 13px; }
+
+{
+  "source": "PID Opendata (data.pid.cz/stops/json/stops.json), Prazska integrovana doprava, licence CC-BY 4.0",
+  "note": "Starter sample fetched live on 2026-09-13. Replace this file with the full export to get every Prague stop - see README.md.",
+  "stops": [
+    { "id": "876", "name": "Albertov", "lat": 50.06785, "lon": 14.4208517,
+      "lines": [
+        {"id":7,"name":"7","type":"tram"},
+        {"id":18,"name":"18","type":"tram"},
+        {"id":24,"name":"24","type":"tram"},
+        {"id":2,"name":"2","type":"tram"},
+        {"id":818,"name":"X18","type":"bus"},
+        {"id":93,"name":"93","type":"tram","night":true},
+        {"id":95,"name":"95","type":"tram","night":true}
+      ]},
+    { "id": "1274", "name": "Ametystová", "lat": 49.9882, "lon": 14.3622169,
+      "lines": [
+        {"id":245,"name":"245","type":"bus"},
+        {"id":269,"name":"269","type":"bus"}
+      ]},
+    { "id": "1029", "name": "Amforová", "lat": 50.04178, "lon": 14.3272982,
+      "lines": [
+        {"id":174,"name":"174","type":"bus"},
+        {"id":219,"name":"219","type":"bus"},
+        {"id":225,"name":"225","type":"bus"},
+        {"id":266,"name":"266","type":"bus"},
+        {"id":301,"name":"301","type":"bus"},
+        {"id":352,"name":"352","type":"bus"},
+        {"id":902,"name":"902","type":"bus","night":true},
+        {"id":904,"name":"904","type":"bus","night":true}
+      ]},
+    { "id": "1040", "name": "Anděl", "lat": 50.0712471, "lon": 14.4033632,
+      "lines": [
+        {"id":4,"name":"4","type":"tram"},
+        {"id":5,"name":"5","type":"tram"},
+        {"id":7,"name":"7","type":"tram"},
+        {"id":9,"name":"9","type":"tram"},
+        {"id":10,"name":"10","type":"tram"},
+        {"id":12,"name":"12","type":"tram"},
+        {"id":15,"name":"15","type":"tram"},
+        {"id":16,"name":"16","type":"tram"},
+        {"id":20,"name":"20","type":"tram"},
+        {"id":123,"name":"123","type":"bus"},
+        {"id":167,"name":"167","type":"bus"},
+        {"id":191,"name":"191","type":"bus"},
+        {"id":992,"name":"B","type":"metro"},
+        {"id":94,"name":"94","type":"tram","night":true},
+        {"id":98,"name":"98","type":"tram","night":true},
+        {"id":99,"name":"99","type":"tram","night":true},
+        {"id":901,"name":"901","type":"bus","night":true},
+        {"id":904,"name":"904","type":"bus","night":true},
+        {"id":907,"name":"907","type":"bus","night":true},
+        {"id":908,"name":"908","type":"bus","night":true}
+      ]},
+    { "id": "950", "name": "Antala Staška", "lat": 50.0416069, "lon": 14.4443626,
+      "lines": [
+        {"id":114,"name":"114","type":"bus"},
+        {"id":121,"name":"121","type":"bus"},
+        {"id":134,"name":"134","type":"bus"},
+        {"id":170,"name":"170","type":"bus"},
+        {"id":914,"name":"914","type":"bus","night":true}
+      ]},
+    { "id": "956", "name": "Apolinářská", "lat": 50.07151, "lon": 14.4267559,
+      "lines": [
+        {"id":148,"name":"148","type":"bus"}
+      ]},
+    { "id": "4", "name": "Arbesovo náměstí", "lat": 50.0762749, "lon": 14.4048328,
+      "lines": [
+        {"id":9,"name":"9","type":"tram"},
+        {"id":12,"name":"12","type":"tram"},
+        {"id":15,"name":"15","type":"tram"},
+        {"id":20,"name":"20","type":"tram"},
+        {"id":53,"name":"53","type":"trolleybus"},
+        {"id":176,"name":"176","type":"bus"},
+        {"id":98,"name":"98","type":"tram","night":true},
+        {"id":99,"name":"99","type":"tram","night":true},
+        {"id":910,"name":"910","type":"bus","night":true}
+      ]},
+    { "id": "348", "name": "Arena Libeň jih", "lat": 50.10286, "lon": 14.4945192,
+      "lines": [
+        {"id":7,"name":"7","type":"tram"},
+        {"id":8,"name":"8","type":"tram"},
+        {"id":94,"name":"94","type":"tram","night":true}
+      ]},
+    { "id": "48", "name": "Argentinská", "lat": 50.1030464, "lon": 14.4433975,
+      "lines": [
+        {"id":156,"name":"156","type":"bus"},
+        {"id":905,"name":"905","type":"bus","night":true},
+        {"id":911,"name":"911","type":"bus","night":true}
+      ]},
+    { "id": "356", "name": "Archeologická", "lat": 50.044117, "lon": 14.3378172,
+      "lines": [
+        {"id":142,"name":"142","type":"bus"},
+        {"id":184,"name":"184","type":"bus"},
+        {"id":266,"name":"266","type":"bus"},
+        {"id":904,"name":"904","type":"bus","night":true}
+      ]},
+    { "id": "899", "name": "Avia Letňany", "lat": 50.1416855, "lon": 14.5159855,
+      "lines": [
+        {"id":158,"name":"158","type":"bus"},
+        {"id":166,"name":"166","type":"bus"},
+        {"id":195,"name":"195","type":"bus"},
+        {"id":201,"name":"201","type":"bus"},
+        {"id":278,"name":"278","type":"bus"}
+      ]},
+    { "id": "9", "name": "Baba I", "lat": 49.9982529, "lon": 14.4150963,
+      "lines": [
+        {"id":341,"name":"341","type":"bus"}
+      ]},
+    { "id": "10", "name": "Baba II", "lat": 49.99958, "lon": 14.4150715,
+      "lines": [
+        {"id":341,"name":"341","type":"bus"}
+      ]},
+    { "id": "12", "name": "Balabenka", "lat": 50.104023, "lon": 14.4825878,
+      "lines": [
+        {"id":7,"name":"7","type":"tram"},
+        {"id":8,"name":"8","type":"tram"},
+        {"id":12,"name":"12","type":"tram"},
+        {"id":31,"name":"31","type":"tram"},
+        {"id":109,"name":"109","type":"bus"},
+        {"id":92,"name":"92","type":"tram","night":true},
+        {"id":94,"name":"94","type":"tram","night":true},
+        {"id":903,"name":"903","type":"bus","night":true}
+      ]},
+    { "id": "237", "name": "Karlovo náměstí", "lat": 50.07532, "lon": 14.4185734,
+      "lines": [
+        {"id":992,"name":"B","type":"metro"}
+      ]}
+  ]
+}
+
+/* Prague Stop Collector — app logic
+   Data model:
+     stop  = { id, name, lat, lon, lines: [{id, name, type, night}] }
+     state = { [stopId]: "transit" | "visited" }   // absent = not collected
+   Persistence: localStorage, key STORAGE_KEY
+*/
+
+const STORAGE_KEY = "ptc_state_v1";
+const STAR_ICON_URL = "icons/star.png"; // swap this file for your own image
+
+const MODE_LABELS = {
+  metro: "Metro",
+  tram: "Tram",
+  bus: "Bus",
+  trolleybus: "Trolleybus",
+  train: "Train (S-line)",
+  funicular: "Funicular",
+  ferry: "Ferry",
+};
+
+const MODE_ORDER = ["metro", "tram", "trolleybus", "bus", "train", "funicular", "ferry"];
+
+let STOPS = [];          // array of stop objects
+let LINES = {};          // lineKey -> { id, name, type, night, stopIds: Set }
+let COLLECTED = {};       // stopId -> "transit" | "visited"
+let map, markersById = {};
+let activeStopId = null;
+let activeLineKey = null;
+let activeModeFilter = "all";
+
+// ---------- persistence ----------
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    COLLECTED = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.warn("Could not read saved progress, starting fresh.", e);
+    COLLECTED = {};
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(COLLECTED));
+  } catch (e) {
+    console.warn("Could not save progress (storage may be full/unavailable).", e);
+  }
+}
+
+// ---------- data loading ----------
+async function loadData() {
+  const res = await fetch("data/stops.json");
+  const json = await res.json();
+  STOPS = json.stops;
+
+  // Build a line key that's stable across stops referencing the same line.
+  // PID line "id" is unique per line, so use that; fall back to name+type.
+  LINES = {};
+  for (const stop of STOPS) {
+    for (const line of stop.lines) {
+      const key = lineKeyFor(line);
+      if (!LINES[key]) {
+        LINES[key] = { key, id: line.id, name: line.name, type: line.type, night: !!line.night, stopIds: new Set() };
+      }
+      LINES[key].stopIds.add(stop.id);
+      // keep "night" true if any occurrence says so
+      if (line.night) LINES[key].night = true;
+    }
+  }
+}
+
+function lineKeyFor(line) {
+  return `${line.type}:${line.name}`;
+}
+
+// ---------- derived / achievement logic ----------
+function stopState(stopId) {
+  return COLLECTED[stopId] || "none";
+}
+
+function isCollected(stopId) {
+  return !!COLLECTED[stopId];
+}
+
+function lineProgress(lineKey) {
+  const line = LINES[lineKey];
+  const ids = [...line.stopIds];
+  const total = ids.length;
+  const collected = ids.filter(isCollected).length;
+  const visited = ids.filter(id => stopState(id) === "visited").length;
+  return { total, collected, visited, remaining: ids.filter(id => !isCollected(id)) };
+}
+
+function overallProgress() {
+  const total = STOPS.length;
+  const collected = STOPS.filter(s => isCollected(s.id)).length;
+  return { total, collected };
+}
+
+function modeBreakdown() {
+  const byMode = {};
+  for (const stop of STOPS) {
+    const modes = new Set(stop.lines.map(l => l.type));
+    for (const m of modes) {
+      byMode[m] = byMode[m] || { total: 0, collected: 0 };
+      byMode[m].total++;
+      if (isCollected(stop.id)) byMode[m].collected++;
+    }
+  }
+  return byMode;
+}
+
+// ---------- map ----------
+function initMap() {
+  map = L.map("map", { zoomControl: true }).setView([50.0836, 14.4230], 12); // Prague center
+
+  const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  });
+  tiles.addTo(map);
+
+  for (const stop of STOPS) {
+    const marker = L.marker([stop.lat, stop.lon], { icon: iconFor(stop.id) });
+    marker.on("click", () => openStopSheet(stop.id));
+    marker.addTo(map);
+    markersById[stop.id] = marker;
+  }
+}
+
+function iconFor(stopId) {
+  const state = stopState(stopId);
+  if (state === "visited") {
+    return L.divIcon({
+      className: "",
+      html: `<div class="stop-marker state-visited"><img src="${STAR_ICON_URL}" alt="visited"></div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+    });
+  }
+  return L.divIcon({
+    className: "",
+    html: `<div class="stop-marker state-${state}"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
+function refreshMarker(stopId) {
+  const marker = markersById[stopId];
+  if (marker) marker.setIcon(iconFor(stopId));
+}
+
+// ---------- stop sheet ----------
+function openStopSheet(stopId) {
+  activeStopId = stopId;
+  const stop = STOPS.find(s => s.id === stopId);
+  document.getElementById("sheetStopName").textContent = stop.name;
+  document.getElementById("sheetLineCount").textContent =
+    `${stop.lines.length} line${stop.lines.length === 1 ? "" : "s"} serve this stop`;
+
+  const chipsWrap = document.getElementById("sheetLines");
+  chipsWrap.innerHTML = "";
+  for (const line of stop.lines) {
+    const chip = document.createElement("span");
+    chip.className = `sheet-line-chip badge-${line.type}`;
+    chip.textContent = line.name + (line.night ? " 🌙" : "");
+    chipsWrap.appendChild(chip);
+  }
+
+  updateStateButtons();
+  showSheet("stopSheet");
+}
+
+function updateStateButtons() {
+  const current = stopState(activeStopId);
+  document.querySelectorAll("#stopSheet .state-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.state === current);
+  });
+}
+
+function setStopState(stopId, state) {
+  if (state === "none") {
+    delete COLLECTED[stopId];
+  } else {
+    COLLECTED[stopId] = state;
+  }
+  saveState();
+  refreshMarker(stopId);
+  renderHeaderProgress();
+  renderLinesList();
+  if (document.getElementById("tab-stats").classList.contains("active")) renderStats();
+  if (activeLineKey) renderLineSheetStops();
+}
+
+// ---------- lines tab ----------
+function renderModeFilters() {
+  const wrap = document.getElementById("modeFilters");
+  wrap.innerHTML = "";
+  const modesPresent = MODE_ORDER.filter(m => Object.values(LINES).some(l => l.type === m));
+  const all = document.createElement("button");
+  all.className = "mode-chip" + (activeModeFilter === "all" ? " active" : "");
+  all.textContent = "All";
+  all.onclick = () => { activeModeFilter = "all"; renderModeFilters(); renderLinesList(); };
+  wrap.appendChild(all);
+
+  for (const m of modesPresent) {
+    const chip = document.createElement("button");
+    chip.className = "mode-chip" + (activeModeFilter === m ? " active" : "");
+    chip.textContent = MODE_LABELS[m] || m;
+    chip.onclick = () => { activeModeFilter = m; renderModeFilters(); renderLinesList(); };
+    wrap.appendChild(chip);
+  }
+}
+
+function renderLinesList() {
+  const listEl = document.getElementById("linesList");
+  const query = (document.getElementById("lineSearch").value || "").trim().toLowerCase();
+
+  let keys = Object.keys(LINES);
+  if (activeModeFilter !== "all") keys = keys.filter(k => LINES[k].type === activeModeFilter);
+  if (query) keys = keys.filter(k => LINES[k].name.toLowerCase().includes(query));
+
+  // sort: by mode order, then numeric/alpha by name
+  keys.sort((a, b) => {
+    const la = LINES[a], lb = LINES[b];
+    const ia = MODE_ORDER.indexOf(la.type), ib = MODE_ORDER.indexOf(lb.type);
+    if (ia !== ib) return ia - ib;
+    if (la.night !== lb.night) return la.night ? 1 : -1;
+    return la.name.localeCompare(lb.name, undefined, { numeric: true });
+  });
+
+  listEl.innerHTML = "";
+  if (keys.length === 0) {
+    listEl.innerHTML = `<p style="color:#8a9095;padding:20px 4px;">No lines match.</p>`;
+    return;
+  }
+
+  for (const key of keys) {
+    const line = LINES[key];
+    const prog = lineProgress(key);
+    const pct = prog.total ? Math.round((prog.collected / prog.total) * 100) : 0;
+
+    const row = document.createElement("div");
+    row.className = "line-row";
+    row.onclick = () => openLineSheet(key);
+    row.innerHTML = `
+      <div class="line-badge badge-${line.type}">${escapeHtml(line.name)}</div>
+      <div class="line-row-body">
+        <div class="line-row-title">${MODE_LABELS[line.type] || line.type}${line.night ? " · night" : ""}</div>
+        <div class="line-row-sub">${prog.collected} / ${prog.total} stops collected</div>
+        <div class="progress-mini-track"><div class="progress-mini-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="line-row-pct">${pct}%</div>
+    `;
+    listEl.appendChild(row);
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ---------- line sheet ----------
+function openLineSheet(lineKey) {
+  activeLineKey = lineKey;
+  const line = LINES[lineKey];
+  document.getElementById("lineSheetTitle").textContent =
+    `${MODE_LABELS[line.type] || line.type} ${line.name}${line.night ? " (night)" : ""}`;
+  renderLineSheetStops();
+  showSheet("lineSheet");
+}
+
+function renderLineSheetStops() {
+  const line = LINES[activeLineKey];
+  const prog = lineProgress(activeLineKey);
+  const pct = prog.total ? Math.round((prog.collected / prog.total) * 100) : 0;
+  document.getElementById("lineSheetBar").style.width = pct + "%";
+  document.getElementById("lineSheetSummary").textContent =
+    `${prog.collected} / ${prog.total} stops collected (${prog.visited} visited, ${prog.collected - prog.visited} driven through)`;
+
+  const wrap = document.getElementById("lineSheetStops");
+  wrap.innerHTML = "";
+  const ids = [...line.stopIds].map(id => STOPS.find(s => s.id === id)).sort((a, b) => a.name.localeCompare(b.name));
+  for (const stop of ids) {
+    const state = stopState(stop.id);
+    const row = document.createElement("div");
+    row.className = "line-stop-row";
+    row.onclick = () => { closeSheet("lineSheet"); openStopSheet(stop.id); };
+    row.innerHTML = `<span class="dot state-${state}"></span><span class="name">${escapeHtml(stop.name)}</span>`;
+    wrap.appendChild(row);
+  }
+}
+
+// ---------- stats tab ----------
+function renderStats() {
+  const el = document.getElementById("statsContent");
+  const { total, collected } = overallProgress();
+  const pct = total ? Math.round((collected / total) * 100) : 0;
+
+  let html = `
+    <div class="stats-card">
+      <div class="stats-big-num">${collected} / ${total}</div>
+      <div class="stats-label">stops collected (${pct}%)</div>
+    </div>
+  `;
+
+  // per-mode breakdown
+  const byMode = modeBreakdown();
+  html += `<div class="stats-card"><div class="stats-label" style="margin-bottom:8px;">By mode</div>`;
+  for (const m of MODE_ORDER) {
+    if (!byMode[m]) continue;
+    const { total: t, collected: c } = byMode[m];
+    const p = t ? Math.round((c / t) * 100) : 0;
+    html += `
+      <div class="mode-progress-row">
+        <div class="label">${MODE_LABELS[m] || m}</div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${p}%"></div></div>
+        <div class="pct">${p}%</div>
+      </div>`;
+  }
+  html += `</div>`;
+
+  // almost-done lines (in progress, not complete), closest first
+  const inProgress = Object.keys(LINES)
+    .map(key => ({ key, ...lineProgress(key), line: LINES[key] }))
+    .filter(l => l.collected > 0 && l.collected < l.total)
+    .sort((a, b) => (a.total - a.collected) - (b.total - b.collected));
+
+  if (inProgress.length) {
+    html += `<div class="stats-card"><div class="stats-label" style="margin-bottom:4px;">Almost there</div><div class="almost-list">`;
+    for (const l of inProgress.slice(0, 12)) {
+      const left = l.total - l.collected;
+      html += `
+        <div class="almost-item" data-key="${l.key}">
+          <span class="name">${MODE_LABELS[l.line.type] || l.line.type} ${escapeHtml(l.line.name)}</span>
+          <span class="need">${left} stop${left === 1 ? "" : "s"} to go</span>
+        </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  el.innerHTML = html;
+  el.querySelectorAll(".almost-item").forEach(item => {
+    item.onclick = () => { switchTab("lines"); openLineSheet(item.dataset.key); };
+  });
+}
+
+function renderHeaderProgress() {
+  const { total, collected } = overallProgress();
+  document.getElementById("overallProgress").textContent = `${collected} / ${total} stops`;
+}
+
+// ---------- sheets (generic show/hide) ----------
+function showSheet(id) {
+  document.getElementById(id).classList.add("open");
+  document.getElementById(id + "Backdrop").classList.add("open");
+}
+function closeSheet(id) {
+  document.getElementById(id).classList.remove("open");
+  document.getElementById(id + "Backdrop").classList.remove("open");
+}
+
+// ---------- tabs ----------
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + name));
+  if (name === "stats") renderStats();
+  if (name === "map" && map) setTimeout(() => map.invalidateSize(), 50);
+}
+
+// ---------- wiring ----------
+function wireEvents() {
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  document.querySelectorAll("#stopSheet .state-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      setStopState(activeStopId, btn.dataset.state);
+      updateStateButtons();
+    });
+  });
+
+  document.getElementById("sheetClose").addEventListener("click", () => closeSheet("stopSheet"));
+  document.getElementById("stopSheetBackdrop").addEventListener("click", () => closeSheet("stopSheet"));
+  document.getElementById("lineSheetClose").addEventListener("click", () => closeSheet("lineSheet"));
+  document.getElementById("lineSheetBackdrop").addEventListener("click", () => closeSheet("lineSheet"));
+
+  document.getElementById("lineSearch").addEventListener("input", renderLinesList);
+}
+
+// ---------- boot ----------
+async function boot() {
+  loadState();
+  await loadData();
+  wireEvents();
+  renderModeFilters();
+  renderLinesList();
+  renderHeaderProgress();
+  initMap();
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js").catch(err => {
+      console.warn("Service worker registration failed (app still works online):", err);
+    });
+  }
+}
+
+boot();
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Prague Stop Collector</title>
+<meta name="theme-color" content="#a6d800">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <h1>Prague Stop Collector</h1>
+    <div class="header-stats">
+      <span id="overallProgress">0 / 0 stops</span>
+    </div>
+  </header>
+
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="map">Map</button>
+    <button class="tab-btn" data-tab="lines">Lines</button>
+    <button class="tab-btn" data-tab="stats">Progress</button>
+  </nav>
+
+  <main>
+    <section id="tab-map" class="tab-panel active">
+      <div id="map"></div>
+    </section>
+
+    <section id="tab-lines" class="tab-panel">
+      <div class="lines-toolbar">
+        <input type="text" id="lineSearch" placeholder="Search lines (e.g. B, 18, 176)…">
+        <div class="mode-filters" id="modeFilters"></div>
+      </div>
+      <div id="linesList" class="lines-list"></div>
+    </section>
+
+    <section id="tab-stats" class="tab-panel">
+      <div id="statsContent" class="stats-content"></div>
+    </section>
+  </main>
+
+  <!-- Stop detail bottom sheet -->
+  <div id="stopSheetBackdrop" class="sheet-backdrop"></div>
+  <div id="stopSheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <h2 id="sheetStopName">Stop name</h2>
+    <p id="sheetLineCount" class="sheet-sub"></p>
+
+    <div class="state-buttons">
+      <button id="btnStateNone" class="state-btn" data-state="none">Not collected</button>
+      <button id="btnStateTransit" class="state-btn" data-state="transit">🚗 Driven through</button>
+      <button id="btnStateVisited" class="state-btn" data-state="visited">⭐ Visited</button>
+    </div>
+
+    <p class="sheet-hint">Marking this stop updates every line that passes through it.</p>
+
+    <div id="sheetLines" class="sheet-lines"></div>
+
+    <button id="sheetClose" class="sheet-close">Close</button>
+  </div>
+
+  <!-- Line detail bottom sheet -->
+  <div id="lineSheetBackdrop" class="sheet-backdrop"></div>
+  <div id="lineSheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <h2 id="lineSheetTitle">Line</h2>
+    <div class="progress-bar-track"><div id="lineSheetBar" class="progress-bar-fill"></div></div>
+    <p id="lineSheetSummary" class="sheet-sub"></p>
+    <div id="lineSheetStops" class="line-stop-list"></div>
+    <button id="lineSheetClose" class="sheet-close">Close</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
