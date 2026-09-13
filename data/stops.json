@@ -1,0 +1,129 @@
+{
+  "source": "PID Opendata (data.pid.cz/stops/json/stops.json), Prazska integrovana doprava, licence CC-BY 4.0",
+  "note": "Starter sample fetched live on 2026-09-13. Replace this file with the full export to get every Prague stop - see README.md.",
+  "stops": [
+    { "id": "876", "name": "Albertov", "lat": 50.06785, "lon": 14.4208517,
+      "lines": [
+        {"id":7,"name":"7","type":"tram"},
+        {"id":18,"name":"18","type":"tram"},
+        {"id":24,"name":"24","type":"tram"},
+        {"id":2,"name":"2","type":"tram"},
+        {"id":818,"name":"X18","type":"bus"},
+        {"id":93,"name":"93","type":"tram","night":true},
+        {"id":95,"name":"95","type":"tram","night":true}
+      ]},
+    { "id": "1274", "name": "Ametystová", "lat": 49.9882, "lon": 14.3622169,
+      "lines": [
+        {"id":245,"name":"245","type":"bus"},
+        {"id":269,"name":"269","type":"bus"}
+      ]},
+    { "id": "1029", "name": "Amforová", "lat": 50.04178, "lon": 14.3272982,
+      "lines": [
+        {"id":174,"name":"174","type":"bus"},
+        {"id":219,"name":"219","type":"bus"},
+        {"id":225,"name":"225","type":"bus"},
+        {"id":266,"name":"266","type":"bus"},
+        {"id":301,"name":"301","type":"bus"},
+        {"id":352,"name":"352","type":"bus"},
+        {"id":902,"name":"902","type":"bus","night":true},
+        {"id":904,"name":"904","type":"bus","night":true}
+      ]},
+    { "id": "1040", "name": "Anděl", "lat": 50.0712471, "lon": 14.4033632,
+      "lines": [
+        {"id":4,"name":"4","type":"tram"},
+        {"id":5,"name":"5","type":"tram"},
+        {"id":7,"name":"7","type":"tram"},
+        {"id":9,"name":"9","type":"tram"},
+        {"id":10,"name":"10","type":"tram"},
+        {"id":12,"name":"12","type":"tram"},
+        {"id":15,"name":"15","type":"tram"},
+        {"id":16,"name":"16","type":"tram"},
+        {"id":20,"name":"20","type":"tram"},
+        {"id":123,"name":"123","type":"bus"},
+        {"id":167,"name":"167","type":"bus"},
+        {"id":191,"name":"191","type":"bus"},
+        {"id":992,"name":"B","type":"metro"},
+        {"id":94,"name":"94","type":"tram","night":true},
+        {"id":98,"name":"98","type":"tram","night":true},
+        {"id":99,"name":"99","type":"tram","night":true},
+        {"id":901,"name":"901","type":"bus","night":true},
+        {"id":904,"name":"904","type":"bus","night":true},
+        {"id":907,"name":"907","type":"bus","night":true},
+        {"id":908,"name":"908","type":"bus","night":true}
+      ]},
+    { "id": "950", "name": "Antala Staška", "lat": 50.0416069, "lon": 14.4443626,
+      "lines": [
+        {"id":114,"name":"114","type":"bus"},
+        {"id":121,"name":"121","type":"bus"},
+        {"id":134,"name":"134","type":"bus"},
+        {"id":170,"name":"170","type":"bus"},
+        {"id":914,"name":"914","type":"bus","night":true}
+      ]},
+    { "id": "956", "name": "Apolinářská", "lat": 50.07151, "lon": 14.4267559,
+      "lines": [
+        {"id":148,"name":"148","type":"bus"}
+      ]},
+    { "id": "4", "name": "Arbesovo náměstí", "lat": 50.0762749, "lon": 14.4048328,
+      "lines": [
+        {"id":9,"name":"9","type":"tram"},
+        {"id":12,"name":"12","type":"tram"},
+        {"id":15,"name":"15","type":"tram"},
+        {"id":20,"name":"20","type":"tram"},
+        {"id":53,"name":"53","type":"trolleybus"},
+        {"id":176,"name":"176","type":"bus"},
+        {"id":98,"name":"98","type":"tram","night":true},
+        {"id":99,"name":"99","type":"tram","night":true},
+        {"id":910,"name":"910","type":"bus","night":true}
+      ]},
+    { "id": "348", "name": "Arena Libeň jih", "lat": 50.10286, "lon": 14.4945192,
+      "lines": [
+        {"id":7,"name":"7","type":"tram"},
+        {"id":8,"name":"8","type":"tram"},
+        {"id":94,"name":"94","type":"tram","night":true}
+      ]},
+    { "id": "48", "name": "Argentinská", "lat": 50.1030464, "lon": 14.4433975,
+      "lines": [
+        {"id":156,"name":"156","type":"bus"},
+        {"id":905,"name":"905","type":"bus","night":true},
+        {"id":911,"name":"911","type":"bus","night":true}
+      ]},
+    { "id": "356", "name": "Archeologická", "lat": 50.044117, "lon": 14.3378172,
+      "lines": [
+        {"id":142,"name":"142","type":"bus"},
+        {"id":184,"name":"184","type":"bus"},
+        {"id":266,"name":"266","type":"bus"},
+        {"id":904,"name":"904","type":"bus","night":true}
+      ]},
+    { "id": "899", "name": "Avia Letňany", "lat": 50.1416855, "lon": 14.5159855,
+      "lines": [
+        {"id":158,"name":"158","type":"bus"},
+        {"id":166,"name":"166","type":"bus"},
+        {"id":195,"name":"195","type":"bus"},
+        {"id":201,"name":"201","type":"bus"},
+        {"id":278,"name":"278","type":"bus"}
+      ]},
+    { "id": "9", "name": "Baba I", "lat": 49.9982529, "lon": 14.4150963,
+      "lines": [
+        {"id":341,"name":"341","type":"bus"}
+      ]},
+    { "id": "10", "name": "Baba II", "lat": 49.99958, "lon": 14.4150715,
+      "lines": [
+        {"id":341,"name":"341","type":"bus"}
+      ]},
+    { "id": "12", "name": "Balabenka", "lat": 50.104023, "lon": 14.4825878,
+      "lines": [
+        {"id":7,"name":"7","type":"tram"},
+        {"id":8,"name":"8","type":"tram"},
+        {"id":12,"name":"12","type":"tram"},
+        {"id":31,"name":"31","type":"tram"},
+        {"id":109,"name":"109","type":"bus"},
+        {"id":92,"name":"92","type":"tram","night":true},
+        {"id":94,"name":"94","type":"tram","night":true},
+        {"id":903,"name":"903","type":"bus","night":true}
+      ]},
+    { "id": "237", "name": "Karlovo náměstí", "lat": 50.07532, "lon": 14.4185734,
+      "lines": [
+        {"id":992,"name":"B","type":"metro"}
+      ]}
+  ]
+}
