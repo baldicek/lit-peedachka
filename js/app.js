@@ -6,7 +6,12 @@
 */
 
 const STORAGE_KEY = "ptc_state_v1";
-const STAR_ICON_URL = "icons/star.png"; // swap this file for your own image
+// Marker images — swap any of these files for your own PNG, same filename, and it just works.
+const STATE_ICON_URLS = {
+  none: "icons/grey.png",
+  transit: "icons/green.png",
+  visited: "icons/star.png",
+};
 
 const MODE_LABELS = {
   metro: "Metro",
@@ -130,19 +135,13 @@ function initMap() {
 
 function iconFor(stopId) {
   const state = stopState(stopId);
-  if (state === "visited") {
-    return L.divIcon({
-      className: "",
-      html: `<div class="stop-marker state-visited"><img src="${STAR_ICON_URL}" alt="visited"></div>`,
-      iconSize: [26, 26],
-      iconAnchor: [13, 13],
-    });
-  }
+  const url = STATE_ICON_URLS[state];
+  const size = state === "visited" ? 26 : 18;
   return L.divIcon({
     className: "",
-    html: `<div class="stop-marker state-${state}"></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+    html: `<div class="stop-marker state-${state}"><img src="${url}" alt="${state}"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 

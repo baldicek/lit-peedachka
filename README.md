@@ -6,13 +6,15 @@ public transport stops you've visited or driven through.
 ## What's in this folder
 
 - `index.html`, `css/style.css`, `js/app.js` — the app itself
-- `data/stops.json` — the stop + line data the app reads. Ships with a
-  starter set (~15 real, verified stops) — see "Getting every stop" below.
+- `data/stops.json` — **all 1,473 Prague PID stops** across metro, tram,
+  bus, trolleybus, train (S-lines), ferry, and the Petřín funicular, built
+  from PID's own open data feed, filtered to `municipality == "Praha"`.
 - `manifest.json`, `service-worker.js`, `icons/` — what makes this
   installable on your phone and usable offline
-- `icons/star.png` — the "visited" marker. **Replace this file with any
-  other PNG of the same name** to use a different icon; nothing else needs
-  to change.
+- `icons/grey.png`, `icons/green.png`, `icons/star.png` — the three map
+  marker states (not collected / driven through / visited). **Replace any
+  of these files with your own PNG of the same name** and it just works —
+  nothing else needs to change.
 
 ## 1. Put it online (so it can be "installed" and work offline)
 
@@ -40,38 +42,33 @@ from a folder on the phone doesn't support that. The easiest free way:
   scrolled to before (those need one data connection to fetch tiles; after
   that they're cached).
 
-## 3. Getting every Prague stop (not just the starter set)
+## 3. Keeping the stop data up to date
 
-The app ships with a real, verified sample of ~15 stops so you can try it
-today. To get **every** Prague PID stop with its exact line list:
+PID regenerates their open-data feed regularly (new lines, rerouted
+buses, etc.). To refresh `data/stops.json` later:
 
 1. On a computer with a normal browser, go to:
    `https://data.pid.cz/stops/json/stops.json`
 2. Save the file (Ctrl+S / Cmd+S).
-3. Send me that file in our chat and ask me to rebuild `data/stops.json`
-   from it, filtered to Prague only (I'll match on `"municipality":
-   "Praha"`) and reshaped into the format this app expects.
-4. I'll hand you back an updated `data/stops.json` — replace the one in
-   your GitHub repo with it (or re-download the whole app from me) and
-   reload the page on your phone once while online.
+3. Send it to me in our chat and ask me to rebuild `data/stops.json`.
+4. Replace the file in your GitHub repo with the one I send back, and
+   reload the app on your phone once while online.
 
 This file is published by ROPID/PID (Prague's transit authority) as open
-data under a CC-BY 4.0 licence, and is regenerated daily, so it's always
-current — see `pid.cz/en/opendata/` for details and licence terms.
+data under a CC-BY 4.0 licence — see `pid.cz/en/opendata/` for licence
+terms.
 
 ## Notes on accuracy
 
-- The starter data was pulled live from PID's feed and double-checked
-  against PID's own line-B documentation, so it's accurate as far as it
-  goes — but it's only a sample.
-- "Karlovo náměstí" in the sample only lists metro line B. The physical
-  hub at that square also has tram stops, but PID lists those under the
-  adjacent stop names ("Novoměstská radnice", "Palackého náměstí", etc.)
-  that share the same transfer node — they'll show up correctly as separate
-  markers once the full dataset is loaded.
-- Ferries, the Petřín funicular, metro A/C, and the S-line trains aren't in
-  the starter sample (I didn't have verified data for them on hand yet) —
-  they'll all appear once the full file is imported.
+- Built from PID's live feed, filtered to `municipality == "Praha"`
+  (1,473 stops, 424 distinct lines). Stredocesky kraj (Central Bohemia)
+  is excluded, as requested.
+- 9 stop entries in the raw feed had no line data attached at all (likely
+  deprecated/unused stop records) and were dropped.
+- The **Petřín funicular**'s 3 stops (Újezd, Nebozízek, Petřín) carry no
+  line metadata in PID's feed at all, so I added a single manual line
+  entry ("Lanovka") for those three by hand, based on public knowledge of
+  the route — everything else in the file comes straight from PID's data.
 
 ## Customising
 
