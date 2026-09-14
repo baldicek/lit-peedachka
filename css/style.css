@@ -322,7 +322,16 @@ main {
 .dot.state-none { background: var(--grey); }
 .dot.state-transit { background: var(--driven); }
 .dot.state-visited { background: var(--orange); }
-.line-stop-row .name { flex: 1; font-size: 14px; }
+.line-stop-row .name { flex: 1; font-size: 14px; display: flex; flex-direction: column; }
+.stop-row-meta { font-size: 11px; color: var(--grey-dark); font-weight: 400; margin-top: 1px; }
+
+.sheet-timestamp {
+  font-size: 12px;
+  color: var(--grey-dark);
+  text-align: center;
+  margin: 8px 0 0;
+  min-height: 14px;
+}
 
 /* Leaflet popup tweaks */
 .leaflet-popup-content { font-size: 13px; }

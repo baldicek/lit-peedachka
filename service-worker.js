@@ -1,4 +1,4 @@
-const SHELL_CACHE = "ptc-shell-v2";
+const SHELL_CACHE = "ptc-shell-v3";
 const TILE_CACHE = "ptc-tiles-v1";
 
 const SHELL_FILES = [
