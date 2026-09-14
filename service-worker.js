@@ -1,4 +1,4 @@
-const SHELL_CACHE = "ptc-shell-v1";
+const SHELL_CACHE = "ptc-shell-v2";
 const TILE_CACHE = "ptc-tiles-v1";
 
 const SHELL_FILES = [
@@ -11,6 +11,8 @@ const SHELL_FILES = [
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/star.png",
+  "icons/grey.png",
+  "icons/green.png",
 ];
 
 self.addEventListener("install", (event) => {
