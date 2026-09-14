@@ -34,10 +34,21 @@ let activeLineKey = null;
 let activeModeFilter = "all";
 
 // ---------- persistence ----------
+// COLLECTED[stopId] = { state: "transit"|"visited", ts: <ISO string> }
+// (older saved data stored a plain string per stop — migrated on load below)
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    COLLECTED = raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    let migrated = false;
+    for (const id of Object.keys(parsed)) {
+      if (typeof parsed[id] === "string") {
+        parsed[id] = { state: parsed[id], ts: null }; // unknown date for old entries
+        migrated = true;
+      }
+    }
+    COLLECTED = parsed;
+    if (migrated) saveState();
   } catch (e) {
     console.warn("Could not read saved progress, starting fresh.", e);
     COLLECTED = {};
@@ -80,7 +91,20 @@ function lineKeyFor(line) {
 
 // ---------- derived / achievement logic ----------
 function stopState(stopId) {
-  return COLLECTED[stopId] || "none";
+  return COLLECTED[stopId] ? COLLECTED[stopId].state : "none";
+}
+
+function stopTimestamp(stopId) {
+  return COLLECTED[stopId] ? COLLECTED[stopId].ts : null;
+}
+
+function formatTimestamp(ts) {
+  if (!ts) return "date unknown";
+  try {
+    return new Date(ts).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  } catch (e) {
+    return "date unknown";
+  }
 }
 
 function isCollected(stopId) {
@@ -136,7 +160,7 @@ function initMap() {
 function iconFor(stopId) {
   const state = stopState(stopId);
   const url = STATE_ICON_URLS[state];
-  const size = state === "visited" ? 26 : 18;
+  const size = state === "visited" ? 13 : 9;
   return L.divIcon({
     className: "",
     html: `<div class="stop-marker state-${state}"><img src="${url}" alt="${state}"></div>`,
@@ -176,13 +200,24 @@ function updateStateButtons() {
   document.querySelectorAll("#stopSheet .state-btn").forEach(btn => {
     btn.classList.toggle("selected", btn.dataset.state === current);
   });
+  const meta = document.getElementById("sheetTimestamp");
+  if (current === "none") {
+    meta.textContent = "";
+  } else {
+    const verb = current === "visited" ? "Visited" : "Driven through";
+    meta.textContent = `${verb} · ${formatTimestamp(stopTimestamp(activeStopId))}`;
+  }
 }
 
 function setStopState(stopId, state) {
   if (state === "none") {
     delete COLLECTED[stopId];
   } else {
-    COLLECTED[stopId] = state;
+    const existing = COLLECTED[stopId];
+    // Keep the original timestamp if re-tapping the same state; only
+    // stamp "now" when the state actually changes.
+    const ts = existing && existing.state === state ? existing.ts : new Date().toISOString();
+    COLLECTED[stopId] = { state, ts };
   }
   saveState();
   refreshMarker(stopId);
@@ -283,10 +318,20 @@ function renderLineSheetStops() {
   const ids = [...line.stopIds].map(id => STOPS.find(s => s.id === id)).sort((a, b) => a.name.localeCompare(b.name));
   for (const stop of ids) {
     const state = stopState(stop.id);
+    const ts = stopTimestamp(stop.id);
     const row = document.createElement("div");
     row.className = "line-stop-row";
     row.onclick = () => { closeSheet("lineSheet"); openStopSheet(stop.id); };
-    row.innerHTML = `<span class="dot state-${state}"></span><span class="name">${escapeHtml(stop.name)}</span>`;
+    const label =
+      state === "visited" ? `Visited · ${formatTimestamp(ts)}` :
+      state === "transit" ? `Driven through · ${formatTimestamp(ts)}` :
+      "Not collected";
+    row.innerHTML = `
+      <span class="dot state-${state}"></span>
+      <span class="name">
+        ${escapeHtml(stop.name)}
+        <span class="stop-row-meta">${label}</span>
+      </span>`;
     wrap.appendChild(row);
   }
 }
