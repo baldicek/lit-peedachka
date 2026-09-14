@@ -445,9 +445,12 @@ async function boot() {
   initMap();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js").catch(err => {
-      console.warn("Service worker registration failed (app still works online):", err);
-    });
+    navigator.serviceWorker
+      .register("service-worker.js", { updateViaCache: "none" }) // never let the browser's HTTP cache hide a newer service-worker.js
+      .then(reg => reg.update()) // also check for a newer version right away, every load
+      .catch(err => {
+        console.warn("Service worker registration failed (app still works online):", err);
+      });
   }
 }
 
